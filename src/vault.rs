@@ -5,7 +5,6 @@ use argon2::{
     },
     Argon2
 };
-use rand::Rng;
 use std::{error::Error, io::Seek};
 use std::fmt;
 use std::fs::File;
@@ -41,21 +40,15 @@ impl Vault {
             return  Err(FileError::BadFileDescriptorError(e));
         }
 
-
-        let mut salt = [0u8; 16];
-        OsRng.fill(&mut salt);
-
         let salt = SaltString::generate(&mut OsRng);
 
-        // Argon2 with default params (Argon2id v19)
         let argon2 = Argon2::default();
 
-        // Hash password to PHC string ($argon2id$v=19$...)
         let password_hash = argon2.hash_password(password.as_bytes(), &salt)?.to_string();
 
         let header = format!("PAPM-Vault\n{}\n{}\n",password_hash, salt);
 
-        file.seek(io::SeekFrom::Start(0))?; // Garantir que estamos no início do arquivo
+        file.seek(io::SeekFrom::Start(0))?;
         file.write_all(header.as_bytes())?;
 
         return Ok(Self { password, file })

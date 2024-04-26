@@ -1,6 +1,6 @@
 [package]
 name = "papm"
-version = "0.2.0"
+version = "0.3.1"
 authors = ["Paulo Evangelista"]
 categories = ["command-line-utilities"]
 edition = "2021"
@@ -9,7 +9,7 @@ include = [
 ]
 keywords = ["password", "manager", "pao", "store"]
 license = "Unlicense"
-repository = "https://github.com/paulo-evangelista"
+repository = "https://github.com/paulo-evangelista/papm"
 rust-version = "1.77.2"
 description = """
 Pauleradixz's password manager!
@@ -18,7 +18,6 @@ Pauleradixz's password manager!
 [dependencies]
 argon2 = "0.5.3"
 clap = { version = "4.5.4", features = ["derive", "env"] }
-hex = "0.4.3"
 rand = "0.8.5"
 
 [[bin]]
