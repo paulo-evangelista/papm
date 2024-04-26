@@ -36,9 +36,9 @@ impl Vault {
             } else {
                 return Err(FileError::CanceledError());
             };
-        } else if let Err(e) = reading_result {
-            return  Err(FileError::BadFileDescriptorError(e));
-        }
+         } // else if let Err(e) = reading_result {
+        //     return  Err(FileError::BadFileDescriptorError(e));
+        // }
 
         let salt = SaltString::generate(&mut OsRng);
 
