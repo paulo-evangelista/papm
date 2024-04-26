@@ -1,5 +1,8 @@
 use clap::{Parser, Subcommand};
-use std::{env, fs, io::{self, Read, Write}, panic::catch_unwind};
+use std::{env, fs, io::{Read, Write}, ops::Deref, os::fd::AsFd};
+use vault::Vault;
+
+mod vault;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -21,68 +24,92 @@ enum Commands {
         #[arg(help = "The name of the password to retrieve")]
         name: String,
     },
-    #[command(about = "Create a new password storage in the given file, encrypted with the provided password", long_about = None)]
-    CreateStorage {
+    #[command(about = "Create a new password vault in the given file, encrypted with the provided password", long_about = None)]
+    CreateVault {
         #[arg(help = "The file path" , default_value_t = String::from("~/.papm"))]
         file: String,
     },
     Set {
         // Arguments for 'set' command
     },
+    #[command(about = "Check if a Vault is correctly configured", long_about = None)]
+    Check {
+        #[arg(help = "The file path" , default_value_t = String::from("~/.papm"))]
+        file: String,
+    },
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    let password = cli.password.or_else(|| env::var("PAPM_PASSWORD").ok());
-
-    if password.is_none() {
+    let password = cli.password.or_else(|| env::var("PAPM_PASSWORD").ok()).unwrap_or_else(||{
         eprintln!("-> No password provided!\n   You can provide the password using the '--password' flag or the 'PAPM_PASSWORD' environment variable.");
         // Exit the program
         std::process::exit(1);
-    }
+    
+    });
 
     match &cli.command {
         Commands::Get { name } => {
             println!("Retrieving password for: {}", name);
             // Implement the logic to retrieve the password
-        },
+        }
         Commands::Set { .. } => {
             // Implementation for 'set' command
-        },
-        Commands::CreateStorage {file} => {
+        }
+        Commands::CreateVault { file } => {
             let canonical_path = fs::canonicalize(file).unwrap_or_else(|_| {
-                eprintln!("-> Error getting the canonical path for: {}", file);
+                eprintln!("-> The file does not exist. Make sure to create it before running this command.");
                 std::process::exit(1);
             });
 
-            let file_contents = fs::read(canonical_path).unwrap_or_else(|_| {
-                eprintln!("-> Error reading file: {}", file);
-                std::process::exit(1);
-            });
+            match fs::OpenOptions::new().write(true).read(true).open(canonical_path) {
+                Ok(opened_file) => {
 
-            if !file_header.is_empty() {
-                print!("-> Attention! The file is not empty. Do you want to overwrite it? (y/N): ");
-                std::io::stdout().flush().unwrap();
-                let mut input = String::new();
-                std::io::stdin().read_line(&mut input).unwrap();
-                if input.trim().to_lowercase() == "y" {
-                    println!("-> ok, overwriting...");
-                } else {
-                    println!("-> Cancelled.");
-                    std::process::exit(0);
+                    match Vault::new(password, opened_file) {
+                        Ok(vault) => {
+                            println!("-> Vault created successfully! Remember to keep your password safe.");
+                        }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            std::process::exit(1);
+                        }
+                    
+                    }
+
+                }
+                Err(e) => {
+                    eprintln!("-> Error opening the file: {}", e);
+                    std::process::exit(1);
                 }
             }
-        },
-    }
-}
+        }
+        Commands::Check { file } => {
+            let canonical_path = fs::canonicalize(file).unwrap_or_else(|_| {
+                eprintln!("-> The file does not exist. Make sure to create it before running this command.");
+                std::process::exit(1);
+            });
 
-fn read_first_10_bytes(file_path: &str) -> Option<String> {
-    let mut file = fs::File::open(file_path);
-    let mut buffer = vec![0; 20]; // Cria um buffer para 10 bytes
-    fs::File::read_exact(&mut buffer).is_err(); // Lê exatamente 10 bytes
-    match String::from_utf8(buffer) {
-        Ok(s) => Some(s),
-        Err(_) => None
+            match fs::OpenOptions::new().write(true).read(true).open(canonical_path) {
+                Ok(opened_file) => {
+
+                    match Vault::open(password, opened_file) {
+                        Ok(content) => {
+                            println!("{}", content);
+                        }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            std::process::exit(1);
+                        }
+                    
+                    }
+
+                }
+                Err(e) => {
+                    eprintln!("-> Error opening the file: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
     }
 }
