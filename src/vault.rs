@@ -1,7 +1,7 @@
 use argon2::{
     password_hash::{
         rand_core::OsRng,
-        PasswordHash, PasswordHasher, PasswordVerifier, SaltString
+        PasswordHasher, SaltString
     },
     Argon2
 };
@@ -11,6 +11,9 @@ use std::fmt;
 use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
+
+// remove dead code warming
+#[allow(dead_code)]
 pub struct Vault {
     password: String,
     file: File,
@@ -59,9 +62,9 @@ impl Vault {
     }
 
     /// Open an already configured vault file.
-    pub fn open(password: String, mut file: File) -> Result<String, FileError> {
+    pub fn open(_password: String, mut file: File) -> Result<String, FileError> {
         let mut readed = String::new();
-        let res = file.read_to_string(&mut readed);
+        let _ = file.read_to_string(&mut readed);
         return Ok(readed)
     }
 }
@@ -74,7 +77,6 @@ pub enum FileError {
     CanceledError(),
     BadFileDescriptorError(io::Error),
     ReadError(io::Error),
-    InvalidUtf8(String),
     PasswordHashError(argon2::password_hash::Error),
 }
 
@@ -86,7 +88,6 @@ impl fmt::Display for FileError {
             FileError::CanceledError() => write!(f, "Operation canceled"),
             FileError::BadFileDescriptorError(ref path) => write!(f, "The file couldn't be read: {}", path),
             FileError::ReadError(ref err) => write!(f, "Error reading file: {}", err),
-            FileError::InvalidUtf8(_) => write!(f, "File content is not valid UTF-8"),
             FileError::PasswordHashError(e) => write!(f, "Error hashing password: {}", e),
 
         }

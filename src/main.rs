@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use std::{env, fs, io::{Read, Write}, ops::Deref, os::fd::AsFd};
+use std::{env, fs};
 use vault::Vault;
 
 mod vault;
@@ -67,7 +67,7 @@ fn main() {
                 Ok(opened_file) => {
 
                     match Vault::new(password, opened_file) {
-                        Ok(vault) => {
+                        Ok(_) => {
                             println!("-> Vault created successfully! Remember to keep your password safe.");
                         }
                         Err(e) => {
