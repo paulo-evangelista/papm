@@ -1,15 +1,12 @@
 use argon2::{
-    password_hash::{
-        rand_core::OsRng,
-        PasswordHasher, SaltString
-    },
-    Argon2
+    password_hash::{rand_core::OsRng, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2, PasswordHash,
 };
-use std::{error::Error, io::Seek};
 use std::fmt;
 use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
+use std::{error::Error, io::Seek};
 
 // remove dead code warming
 #[allow(dead_code)]
@@ -36,38 +33,76 @@ impl Vault {
             } else {
                 return Err(FileError::CanceledError());
             };
-         } // else if let Err(e) = reading_result {
-        //     return  Err(FileError::BadFileDescriptorError(e));
-        // }
+        } // else if let Err(e) = reading_result {
+          //     return  Err(FileError::BadFileDescriptorError(e));
+          // }
 
         let salt = SaltString::generate(&mut OsRng);
 
         let argon2 = Argon2::default();
 
-        let password_hash = argon2.hash_password(password.as_bytes(), &salt)?.to_string();
+        let password_hash = argon2
+            .hash_password(password.as_bytes(), &salt)?
+            .to_string();
 
-        let header = format!("PAPM-Vault\n{}\n{}\n",password_hash, salt);
+        let header = format!("PAPM-Vault\n{}\n{}\n", password_hash, salt);
 
         file.seek(io::SeekFrom::Start(0))?;
         file.write_all(header.as_bytes())?;
 
-        return Ok(Self { password, file })
+        return Ok(Self { password, file });
     }
 
     /// Open an already configured vault file.
-    pub fn open(_password: String, mut file: File) -> Result<String, FileError> {
+    pub fn open(password: String, mut file: File) -> Result<String, FileError> {
         let mut readed = String::new();
         let _ = file.read_to_string(&mut readed);
-        return Ok(readed)
+        let (papm_header, readed) = get_next_line(&readed).ok_or(FileError::InvalidFileError())?;
+        let (pass_hash, _) = get_next_line(&readed).ok_or(FileError::InvalidFileError())?;
+        if papm_header != "PAPM-Vault" {
+            return Err(FileError::InvalidFileError());
+        };
+
+        let argon2 = Argon2::default();
+
+        match PasswordHash::new(pass_hash) {
+            Ok(parsed_password) => {
+                match argon2.verify_password(password.as_bytes(), &parsed_password){
+                    Ok(_) => {
+                        return Ok(" -> Vault configured and ready!".to_string());
+                    }
+                    Err(e) => {
+                        if e == argon2::password_hash::Error::Password {
+                            return Ok(" -> The vault seems to be configured, but was not created with the current password.".to_string());
+                        }
+                        println!("Error: {}", e);
+                        return Err(FileError::PasswordHashError(e));
+                    }
+                
+                }
+            }
+            Err(e) => {
+                return Err(FileError::PasswordHashError(e));
+            }
+        }
+
     }
 }
 
+fn get_next_line(data: &str) -> Option<(&str, &str)> {
+    for (i, c) in data.chars().enumerate() {
+        if c == '\n' {
+            return Some((&data[..i], &data[i + 1..]));
+        }
+    }
 
-
+    None
+}
 
 #[derive(Debug)]
 pub enum FileError {
     CanceledError(),
+    InvalidFileError(),
     BadFileDescriptorError(io::Error),
     ReadError(io::Error),
     PasswordHashError(argon2::password_hash::Error),
@@ -79,10 +114,12 @@ impl fmt::Display for FileError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FileError::CanceledError() => write!(f, "Operation canceled"),
-            FileError::BadFileDescriptorError(ref path) => write!(f, "The file couldn't be read: {}", path),
+            FileError::InvalidFileError() => write!(f, "Invalid file."),
+            FileError::BadFileDescriptorError(ref path) => {
+                write!(f, "The file couldn't be read: {}", path)
+            }
             FileError::ReadError(ref err) => write!(f, "Error reading file: {}", err),
             FileError::PasswordHashError(e) => write!(f, "Error hashing password: {}", e),
-
         }
     }
 }

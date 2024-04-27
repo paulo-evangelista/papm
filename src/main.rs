@@ -10,7 +10,7 @@ struct Cli {
     #[arg(short, long, help = "The password to use for authentication")]
     password: Option<String>,
 
-    #[arg(short, long, help = "The file to process", default_value_t = String::from("~/.zshrc"))]
+    #[arg(short, long, help = "The file to process", default_value_t = String::from("~/.papm"))]
     file: String,
 
     #[command(subcommand)]
